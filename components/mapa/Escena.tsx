@@ -123,6 +123,7 @@ function Etiqueta({
   color,
   fuente,
   parada,
+  contorno = false,
 }: {
   texto: string;
   x: number;
@@ -132,7 +133,10 @@ function Etiqueta({
   color: string;
   fuente: string;
   parada: boolean;
+  /** Borde del color del fondo: ayuda a leer los textos chicos encima de las líneas del plano. */
+  contorno?: boolean;
 }) {
+  const borde = contorno ? { outlineWidth: tamano * 0.12, outlineColor: "#0a0b0d" } : {};
   if (!parada) {
     return (
       <Text
@@ -143,6 +147,7 @@ function Etiqueta({
         color={color}
         anchorX="center"
         anchorY="middle"
+        {...borde}
       >
         {texto}
       </Text>
@@ -156,6 +161,7 @@ function Etiqueta({
         color={color}
         anchorX="center"
         anchorY="bottom"
+        {...borde}
       >
         {texto}
       </Text>
@@ -206,6 +212,7 @@ function PisoVista({
                 color={importante ? TINTA : MUTED}
                 fuente={FUENTE_TEXTO}
                 parada={parada}
+                contorno={!importante}
               />
             );
           })}
