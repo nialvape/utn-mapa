@@ -302,6 +302,8 @@ export function Escena({
         minDistance={15}
         maxDistance={700}
         screenSpacePanning={false}
+        // Gestos de app de mapas: un dedo desplaza; dos dedos pellizcan para zoom y giran/inclinan la vista.
+        touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }}
       />
       <Camara controles={controles} foco={foco} />
     </Canvas>
