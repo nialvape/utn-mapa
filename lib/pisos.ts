@@ -17,4 +17,4 @@ export const PISOS: Piso[] = [
 ];
 
 /** Separación vertical entre pisos en la vista apilada (metros de escena). */
-export const SEPARACION_PISOS = 18;
+export const SEPARACION_PISOS = 35;
