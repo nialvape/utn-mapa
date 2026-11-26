@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { OrbitControls, Text } from "@react-three/drei";
+import { Billboard, OrbitControls, Text } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { PISOS, SEPARACION_PISOS, type PisoId } from "@/lib/pisos";
@@ -55,11 +55,13 @@ function AulaVista({
   aula,
   estado,
   seleccionada,
+  parada,
   onElegir,
 }: {
   aula: Aula;
   estado: Estado;
   seleccionada: boolean;
+  parada: boolean;
   onElegir: (id: string) => void;
 }) {
   const alto = seleccionada ? ALTO_SELECCION : ALTO_PARED;
@@ -93,34 +95,92 @@ function AulaVista({
         <meshBasicMaterial color={color} transparent opacity={opacidad} depthWrite={false} />
       </mesh>
       {estado !== "atenuado" && (
-        <Text
-          font={FUENTE_NUMEROS}
-          position={[aula.centro[0], alto + 0.05, aula.centro[1]]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={seleccionada ? 2.4 : 1.6}
+        <Etiqueta
+          texto={`${aula.id}${aula.aVerificar ? "*" : ""}`}
+          x={aula.centro[0]}
+          y={alto}
+          z={aula.centro[1]}
+          tamano={seleccionada ? 2.8 : 1.9}
           color={seleccionada ? "#ffffff" : TINTA}
-          anchorX="center"
-          anchorY="middle"
-        >
-          {aula.id.startsWith("S") ? `S${aula.id.slice(1)}` : aula.id}
-          {aula.aVerificar ? "*" : ""}
-        </Text>
+          fuente={FUENTE_NUMEROS}
+          parada={parada}
+        />
       )}
     </group>
   );
 }
+
+/**
+ * Texto sobre el plano. Parado: de frente a la cámara, apoyado sobre lo que nombra.
+ * Acostado: pegado al piso, como en un plano impreso.
+ */
+function Etiqueta({
+  texto,
+  x,
+  y,
+  z,
+  tamano,
+  color,
+  fuente,
+  parada,
+}: {
+  texto: string;
+  x: number;
+  y: number;
+  z: number;
+  tamano: number;
+  color: string;
+  fuente: string;
+  parada: boolean;
+}) {
+  if (!parada) {
+    return (
+      <Text
+        font={fuente}
+        position={[x, y + 0.05, z]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        fontSize={tamano}
+        color={color}
+        anchorX="center"
+        anchorY="middle"
+      >
+        {texto}
+      </Text>
+    );
+  }
+  return (
+    <Billboard position={[x, y + 0.2, z]}>
+      <Text
+        font={fuente}
+        fontSize={tamano}
+        color={color}
+        anchorX="center"
+        anchorY="bottom"
+      >
+        {texto}
+      </Text>
+    </Billboard>
+  );
+}
+
+/** Los lugares que la gente busca para orientarse: van más grandes y se ven aunque no haya piso elegido. */
+const TIPOS_IMPORTANTES = new Set(["ingreso", "bedelia", "biblioteca", "buffet"]);
+const NOMBRES_IMPORTANTES = new Set(["Auditorio", "CEIT", "Hall principal", "Dirección de alumnos", "SAU"]);
+const esImportante = (p: Plano["pois"][number]) => TIPOS_IMPORTANTES.has(p.tipo) || NOMBRES_IMPORTANTES.has(p.nombre);
 
 function PisoVista({
   plano,
   nivel,
   estado,
   seleccion,
+  parada,
   onElegir,
 }: {
   plano: Plano;
   nivel: number;
   estado: Estado;
   seleccion: string | null;
+  parada: boolean;
   onElegir: (id: string) => void;
 }) {
   return (
@@ -128,25 +188,27 @@ function PisoVista({
       {/* Los pisos no elegidos casi desaparecen: los planos son muy densos y tapan al elegido. */}
       <Lineas lineas={plano.lineas} opacidad={estado === "atenuado" ? 0.015 : estado === "activo" ? 0.55 : 0.32} />
       {plano.aulas.map((a) => (
-        <AulaVista key={a.id} aula={a} estado={estado} seleccionada={a.id === seleccion} onElegir={onElegir} />
+        <AulaVista key={a.id} aula={a} estado={estado} seleccionada={a.id === seleccion} parada={parada} onElegir={onElegir} />
       ))}
-      {estado === "activo" &&
+      {estado !== "atenuado" &&
         plano.pois
-          .filter((p) => p.tipo !== "estacionamiento")
-          .map((p, i) => (
-            <Text
-              key={i}
-              font={FUENTE_TEXTO}
-              position={[p.centro[0], 0.1, p.centro[1]]}
-              rotation={[-Math.PI / 2, 0, 0]}
-              fontSize={1}
-              color={MUTED}
-              anchorX="center"
-              anchorY="middle"
-            >
-              {p.nombre}
-            </Text>
-          ))}
+          .filter((p) => p.tipo !== "estacionamiento" && (estado === "activo" || esImportante(p)))
+          .map((p, i) => {
+            const importante = esImportante(p);
+            return (
+              <Etiqueta
+                key={i}
+                texto={p.nombre}
+                x={p.centro[0]}
+                y={0}
+                z={p.centro[1]}
+                tamano={importante ? 1.5 : 0.9}
+                color={importante ? TINTA : MUTED}
+                fuente={FUENTE_TEXTO}
+                parada={parada}
+              />
+            );
+          })}
     </group>
   );
 }
@@ -200,6 +262,8 @@ export function Escena({
   onFondo: () => void;
 }) {
   const controles = useRef<OrbitControlsImpl>(null);
+  // Etiquetas paradas por defecto; ?etiquetas=planas las acuesta sobre el plano, para comparar.
+  const [parada] = useState(() => new URLSearchParams(window.location.search).get("etiquetas") !== "planas");
 
   return (
     <Canvas
@@ -218,6 +282,7 @@ export function Escena({
             nivel={p.nivel}
             estado={estado}
             seleccion={seleccion}
+            parada={parada}
             onElegir={(id) => onElegirAula(p.id, id)}
           />
         );
