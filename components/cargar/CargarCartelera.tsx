@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase, URL_CUENTA } from "@/lib/supabase";
+import { BASE_PATH } from "@/lib/planos";
+import { Aviso } from "@/components/mapa/Aviso";
 import {
   cargarCatalogo,
   diaDeSemana,
@@ -24,6 +26,44 @@ interface Fila {
   comision: string;
   modulos: string;
   aula: string;
+  /** Qué revisar, si la fila vino de una foto y el modelo no estaba seguro. */
+  duda?: string | null;
+}
+
+interface Lectura {
+  dia: string | null;
+  turno: Turno | null;
+  filas: Required<Omit<Fila, "id">>[];
+  modelo: string;
+}
+
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+const vacia = (f: Fila) => !f.materia.trim() && !f.comision.trim() && !f.aula.trim() && !f.modulos.trim();
+
+/** Suma lo leído de la foto a lo que ya hay: misma materia y comisión se actualiza, lo nuevo se agrega. */
+function combinar(actuales: Fila[], leidas: Lectura["filas"]): Fila[] {
+  const resultado = actuales.filter((f) => !vacia(f));
+  for (const l of leidas) {
+    const i = resultado.findIndex(
+      (f) => f.comision.trim().toUpperCase() === l.comision && f.materia.trim().toLowerCase() === l.materia.toLowerCase(),
+    );
+    if (i >= 0) resultado[i] = { ...resultado[i], modulos: l.modulos || resultado[i].modulos, aula: l.aula, duda: l.duda };
+    else resultado.push({ ...l });
+  }
+  return resultado.length ? resultado : [filaVacia()];
+}
+
+/** Achica la foto a 2000 px de lado como máximo, en JPEG: alcanza para leer la tabla y pesa poco. */
+async function achicar(archivo: File): Promise<string> {
+  const bitmap = await createImageBitmap(archivo);
+  const escala = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * escala);
+  canvas.height = Math.round(bitmap.height * escala);
+  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL("image/jpeg", 0.85);
 }
 
 const filaVacia = (): Fila => ({ materia: "", comision: "", modulos: "", aula: "" });
@@ -72,6 +112,9 @@ export function CargarCartelera() {
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [esAdmin, setEsAdmin] = useState(false);
+  const [leyendo, setLeyendo] = useState(false);
+  /** Filas leídas de una foto de otro turno: se suman cuando termina de cargar ese turno. */
+  const pendientes = useRef<Lectura["filas"] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -99,9 +142,14 @@ export function CargarCartelera() {
       .then(({ data }) => {
         if (!vigente) return;
         const existentes = ((data ?? []) as Asignacion[]).map(aFila);
-        setFilas(existentes.length ? existentes : [filaVacia()]);
+        if (pendientes.current) {
+          setFilas(combinar(existentes, pendientes.current));
+          pendientes.current = null;
+        } else {
+          setFilas(existentes.length ? existentes : [filaVacia()]);
+          setMensaje(null);
+        }
         setBorradas([]);
-        setMensaje(null);
       });
     return () => {
       vigente = false;
@@ -111,13 +159,60 @@ export function CargarCartelera() {
   const materias = useMemo(() => [...new Set(catalogo.map((c) => c.materia))], [catalogo]);
 
   function cambiar(i: number, campo: keyof Fila, valor: string) {
-    setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)));
+    setFilas((fs) => fs.map((f, j) => (j === i ? { ...f, [campo]: valor, duda: null } : f)));
   }
 
   function quitar(i: number) {
     const f = filas[i];
     if (f.id) setBorradas((b) => [...b, f.id!]);
     setFilas((fs) => (fs.length === 1 ? [filaVacia()] : fs.filter((_, j) => j !== i)));
+  }
+
+  async function leerFoto(e: ChangeEvent<HTMLInputElement>) {
+    const archivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!archivo) return;
+    setMensaje(null);
+    setLeyendo(true);
+    try {
+      const imagen = await achicar(archivo);
+      const r = await fetch(`${BASE_PATH}/api/leer-cartelera`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imagen, materias }),
+      });
+      const datos = await r.json().catch(() => ({ error: `Error ${r.status}` }));
+      if (!r.ok) throw new Error(datos.error ?? `Error ${r.status}`);
+      const lectura = datos as Lectura;
+      if (!lectura.filas.length) {
+        setMensaje({ tipo: "error", texto: "No encontré filas en la foto. Probá con otra más derecha y nítida, o cargala a mano." });
+        return;
+      }
+      const avisos: string[] = [];
+      if (lectura.dia && sinAcentos(lectura.dia) !== sinAcentos(diaDeSemana(fecha))) {
+        avisos.push(`la foto dice ${lectura.dia} y la fecha elegida es ${diaDeSemana(fecha)}: revisá la fecha`);
+      }
+      if (lectura.turno && lectura.turno !== turno) {
+        avisos.push(`la cambié al turno ${TURNOS[lectura.turno].toLowerCase()}, que es el de la foto`);
+        pendientes.current = lectura.filas;
+        setTurno(lectura.turno);
+      } else {
+        setFilas((fs) => combinar(fs, lectura.filas));
+      }
+      const dudosas = lectura.filas.filter((f) => f.duda).length;
+      setMensaje({
+        tipo: "ok",
+        texto:
+          `Leí ${lectura.filas.length} filas. Revisalas antes de guardar` +
+          (dudosas ? `, sobre todo las ${dudosas} marcadas con ⚠` : "") +
+          "." +
+          (avisos.length ? ` Ojo: ${avisos.join("; ")}.` : ""),
+      });
+    } catch (err) {
+      setMensaje({ tipo: "error", texto: `No se pudo leer la foto: ${(err as Error).message}` });
+    } finally {
+      setLeyendo(false);
+    }
   }
 
   async function guardar() {
@@ -230,6 +325,16 @@ export function CargarCartelera() {
               <p className="self-end pb-2 font-mono text-xs text-muted capitalize">{diaDeSemana(fecha)}</p>
             </div>
 
+            <label
+              className={`reg bg-panel flex cursor-pointer items-center gap-3 border border-dashed border-line-strong p-4 text-sm hover:bg-line ${leyendo ? "pointer-events-none opacity-60" : ""}`}
+            >
+              <input type="file" accept="image/*" onChange={leerFoto} className="sr-only" disabled={leyendo} />
+              <span className="font-mono text-accent">{leyendo ? "Leyendo la foto…" : "Subir foto de la cartelera"}</span>
+              <span className="text-xs text-muted">
+                {leyendo ? "Puede tardar hasta un minuto." : "Completa las filas sola; después las revisás y guardás."}
+              </span>
+            </label>
+
             <datalist id="materias">
               {materias.map((m) => (
                 <option key={m} value={m} />
@@ -278,6 +383,12 @@ export function CargarCartelera() {
                   >
                     ×
                   </button>
+                  {f.duda && (
+                    <p className="col-span-full flex gap-1.5 text-xs text-muted">
+                      <Aviso />
+                      <span>{f.duda}</span>
+                    </p>
+                  )}
                 </li>
               ))}
             </ol>
