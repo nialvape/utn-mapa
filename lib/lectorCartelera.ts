@@ -65,7 +65,7 @@ function instrucciones(materiasConocidas: string[]): string {
 
 Pasá cada fila de la tabla a JSON, sin inventar nada:
 - materia: el nombre de la materia tal como está escrito, con mayúsculas y acentos normales (no todo en mayúscula).
-- comision: el código de la comisión, por ejemplo K1052 o Z2001, sin espacios.
+- comision: el código de la comisión, sin espacios. Siempre es una letra seguida de 4 números (K1052, Z2056, O4051, I2054, Q5051, S3052): la primera es una letra, no la confundas con un número (O no es 0, Z no es 2, I no es 1, S no es 5).
 - modulos: la banda horaria dice algo como "Martes 1:5 (N)"; acá va solo "1:5" (los módulos van de 0 a 9). Si la banda nombra varios días ("Martes 1:5 (N) | Jueves 0:2 (N)"), usá solo el del día de esta hoja. Vacío si no figura.
 - aula: el número tal cual (234, 59, 04), "Sub.13" si es del subsuelo, "V" si dice virtual, o vacío si la celda está vacía.
 - duda: si alguna celda de esa fila está borrosa, tapada, cortada, tachada o corregida a mano, o no estás seguro de leerla bien, explicá en pocas palabras qué revisar (por ejemplo "aula tachada, parece 117"). Si la fila se lee bien, null.
@@ -89,6 +89,38 @@ function extraerJson(texto: string): unknown {
 
 const texto = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" ? String(v) : "");
 
+// La comisión siempre empieza con letra; los modelos a veces leen la O como 0, la Z como 2, etc.
+const LETRA_POR_DIGITO: Record<string, string> = { "0": "O", "1": "I", "2": "Z", "5": "S", "8": "B", "6": "G" };
+
+function corregirComision(c: string): string {
+  if (/^\d{5}$/.test(c) && LETRA_POR_DIGITO[c[0]]) return LETRA_POR_DIGITO[c[0]] + c.slice(1);
+  return c;
+}
+
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "");
+
+/**
+ * Unifica cómo se escribió una misma materia en distintas filas ("Algebra y Geometria Analítica" y
+ * "Álgebra y Geometría Analitica" → "Álgebra y Geometría Analítica"): palabra por palabra, gana la que tiene tilde.
+ */
+function unificarMaterias<T extends { materia: string }>(filas: T[]): T[] {
+  const grupos = new Map<string, string[][]>();
+  for (const f of filas) {
+    f.materia = f.materia.replace(/[.\s]+$/, "");
+    const clave = sinAcentos(f.materia).toLowerCase();
+    grupos.set(clave, [...(grupos.get(clave) ?? []), f.materia.split(" ")]);
+  }
+  const elegida = new Map<string, string>();
+  for (const [clave, variantes] of grupos) {
+    const palabras = variantes[0].map((_, i) => {
+      const opciones = variantes.map((v) => v[i]).filter(Boolean);
+      return opciones.find((p) => p !== sinAcentos(p)) ?? opciones.find((p) => /^[A-ZÁÉÍÓÚÑ]/.test(p)) ?? opciones[0];
+    });
+    elegida.set(clave, palabras.join(" "));
+  }
+  return filas.map((f) => ({ ...f, materia: elegida.get(sinAcentos(f.materia).toLowerCase()) ?? f.materia }));
+}
+
 function normalizar(crudo: unknown): Omit<Lectura, "modelo"> {
   if (!crudo || typeof crudo !== "object") throw new Error("JSON con forma inesperada");
   const o = crudo as Record<string, unknown>;
@@ -98,7 +130,7 @@ function normalizar(crudo: unknown): Omit<Lectura, "modelo"> {
     .filter((f): f is Record<string, unknown> => !!f && typeof f === "object")
     .map((f) => ({
       materia: texto(f.materia),
-      comision: texto(f.comision).toUpperCase().replace(/\s+/g, ""),
+      comision: corregirComision(texto(f.comision).toUpperCase().replace(/\s+/g, "")),
       modulos: texto(f.modulos),
       aula: texto(f.aula),
       duda: texto(f.duda) || null,
@@ -107,7 +139,7 @@ function normalizar(crudo: unknown): Omit<Lectura, "modelo"> {
   return {
     dia: texto(o.dia).toLowerCase() || null,
     turno: turno === "M" || turno === "T" || turno === "N" ? turno : null,
-    filas,
+    filas: unificarMaterias(filas),
   };
 }
 
@@ -180,7 +212,10 @@ export async function leerCartelera(imagen: string, materias: string[], oidc: st
   for (const intento of lista) {
     try {
       const lectura = await pedir(intento, imagen, materias);
-      if (lectura.filas.length) return lectura;
+      if (lectura.filas.length) {
+        console.info(`leerCartelera: ${lectura.filas.length} filas con ${intento.modelo}`, errores);
+        return lectura;
+      }
       vacia ??= lectura;
       errores.push(`${intento.modelo}: no encontró filas`);
     } catch (e) {
