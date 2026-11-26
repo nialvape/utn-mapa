@@ -37,7 +37,7 @@ interface Lectura {
   modelo: string;
 }
 
-const sinAcentos = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const sinAcentos = (t: string) => t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 const vacia = (f: Fila) => !f.materia.trim() && !f.comision.trim() && !f.aula.trim() && !f.modulos.trim();
 
