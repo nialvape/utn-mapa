@@ -16,6 +16,7 @@ import {
 import { Escena, type Foco } from "./Escena";
 import { Buscador, type Sugerencia } from "./Buscador";
 import { PanelComision } from "./PanelComision";
+import { Aviso } from "./Aviso";
 
 const NOMBRE_EDIFICIO = { violeta: "Edificio central", rosa: "Edificio este", noreste: "Edificio noreste" } as const;
 
@@ -190,10 +191,13 @@ export function Mapa() {
             <p className="font-mono text-[11px] tracking-widest text-muted uppercase">
               {pisoSel.nombre} · {NOMBRE_EDIFICIO[seleccion.aula.edificio]}
             </p>
-            <p className="mt-1 text-2xl font-semibold">Aula {etiquetaAula(seleccion.aula.id)}</p>
+            <p className="mt-1 flex items-baseline gap-2 text-2xl font-semibold">
+              Aula {etiquetaAula(seleccion.aula.id)}
+              {(seleccion.aula.aVerificar || pisoSel.aVerificar) && <Aviso />}
+            </p>
             {(seleccion.aula.aVerificar || pisoSel.aVerificar) && (
               <p className="mt-2 text-xs text-muted">
-                ⚠ Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
+                Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
               </p>
             )}
           </section>

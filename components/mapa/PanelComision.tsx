@@ -1,12 +1,16 @@
 "use client";
 
 import { etiquetaAula, etiquetaModulos, fechaLarga, type Asignacion, type Comision, type Consulta } from "@/lib/asignaciones";
+import { Aviso } from "./Aviso";
 
-function Linea({ a, confirmada }: { a: Asignacion; confirmada: boolean }) {
+function Linea({ a, confirmada, aviso }: { a: Asignacion; confirmada: boolean; aviso: boolean }) {
   const lugar = a.virtual ? "Virtual" : a.aula ? `Aula ${etiquetaAula(a.aula)}` : "Sin aula asignada todavía";
   return (
     <div className="mt-2">
-      <p className={`text-2xl font-semibold ${confirmada ? "" : "text-muted"}`}>{lugar}</p>
+      <p className="flex items-baseline gap-2 text-2xl font-semibold">
+        <span className={confirmada ? "" : "text-muted"}>{lugar}</span>
+        {aviso && <Aviso />}
+      </p>
       <p className="font-mono text-xs text-muted">{etiquetaModulos(a)}</p>
     </div>
   );
@@ -61,7 +65,7 @@ export function PanelComision({
         <>
           <p className="mt-3 font-mono text-[11px] tracking-widest text-accent uppercase">Hoy · cartelera</p>
           {consulta.deHoy.map((a) => (
-            <Linea key={a.id} a={a} confirmada />
+            <Linea key={a.id} a={a} confirmada aviso={!aulaEnMapa && !!a.aula} />
           ))}
         </>
       )}
@@ -71,8 +75,8 @@ export function PanelComision({
           <p className="mt-3 font-mono text-[11px] tracking-widest text-muted uppercase">
             Hoy todavía no se cargó · el {fechaLarga(consulta.anterior.fecha)} fue en
           </p>
-          <Linea a={consulta.anterior} confirmada={false} />
-          <p className="mt-1 text-xs text-muted">⚠ No confirmado: puede cambiar hoy.</p>
+          <Linea a={consulta.anterior} confirmada={false} aviso />
+          <p className="mt-1 text-xs text-muted">No confirmado: puede cambiar hoy.</p>
         </>
       )}
 
@@ -85,7 +89,7 @@ export function PanelComision({
       )}
 
       {consulta && !aulaEnMapa && (consulta.deHoy[0]?.aula || consulta.anterior?.aula) && (
-        <p className="mt-2 text-xs text-muted">⚠ Esa aula todavía no está ubicada en el mapa.</p>
+        <p className="mt-2 text-xs text-muted">Esa aula todavía no está ubicada en el mapa.</p>
       )}
     </section>
   );

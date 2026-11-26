@@ -9,6 +9,7 @@
   --line-faint: rgb(18 18 18 / 0.035);
   --line-strong: rgb(18 18 18 / 0.2);
   --accent: #1f4fd6;
+  --warn: #b45309;
   --panel: rgb(255 255 255 / 0.55);
 }
 .dark {
@@ -19,6 +20,7 @@
   --line-faint: rgb(233 231 224 / 0.025);
   --line-strong: rgb(233 231 224 / 0.16);
   --accent: #6b93ff;
+  --warn: #fbbf24;
   --panel: rgb(20 21 24 / 0.6);
 }
 
@@ -31,6 +33,7 @@
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
+  --color-warn: var(--warn);
   --color-panel: var(--panel);
 }
 
