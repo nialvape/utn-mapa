@@ -66,9 +66,10 @@ function instrucciones(materiasConocidas: string[]): string {
 Pasá cada fila de la tabla a JSON, sin inventar nada:
 - materia: el nombre de la materia tal como está escrito, con mayúsculas y acentos normales (no todo en mayúscula).
 - comision: el código de la comisión, por ejemplo K1052 o Z2001, sin espacios.
-- modulos: la banda horaria suele decir algo como "Martes 1:5 (N)"; acá va solo "1:5". Vacío si no figura.
+- modulos: la banda horaria dice algo como "Martes 1:5 (N)"; acá va solo "1:5" (los módulos van de 0 a 9). Si la banda nombra varios días ("Martes 1:5 (N) | Jueves 0:2 (N)"), usá solo el del día de esta hoja. Vacío si no figura.
 - aula: el número tal cual (234, 59, 04), "Sub.13" si es del subsuelo, "V" si dice virtual, o vacío si la celda está vacía.
-- duda: si alguna celda de esa fila está borrosa, tapada, cortada o no estás seguro de leerla bien, explicá en pocas palabras qué revisar (por ejemplo "aula borrosa: 234 o 284"). Si la fila se lee bien, null.
+- duda: si alguna celda de esa fila está borrosa, tapada, cortada, tachada o corregida a mano, o no estás seguro de leerla bien, explicá en pocas palabras qué revisar (por ejemplo "aula tachada, parece 117"). Si la fila se lee bien, null.
+- Incluí también las filas agregadas a mano en la hoja.
 
 Además:
 - dia: el día de la semana de la hoja (de la banda o del título), en minúscula. null si no se ve.
