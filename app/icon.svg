@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-16 0 132 132">
+  <style>
+    .m { color: #121212; }
+    @media (prefers-color-scheme: dark) { .m { color: #e9e7e0; } }
+  </style>
+  <g class="m" fill="none">
+    <g stroke="currentColor" stroke-width="11">
+      <path d="M50 0v100M0 50h100"/>
+      <path d="M19 0v19a11 11 0 0 0 11 11h40a11 11 0 0 0 11-11V0"/>
+      <path d="M19 100V81a11 11 0 0 1 11-11h40a11 11 0 0 1 11 11v19"/>
+    </g>
+    <text x="50" y="131" text-anchor="middle" textLength="72" lengthAdjust="spacingAndGlyphs" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="29" fill="currentColor">MCP</text>
+  </g>
+</svg>
