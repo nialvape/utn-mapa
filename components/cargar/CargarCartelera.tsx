@@ -71,6 +71,7 @@ export function CargarCartelera() {
   const [catalogo, setCatalogo] = useState<Comision[]>([]);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
   const [guardando, setGuardando] = useState(false);
+  const [esAdmin, setEsAdmin] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -78,7 +79,8 @@ export function CargarCartelera() {
         data: { user },
       } = await supabase().auth.getUser();
       if (!user) return setEstado({ tipo: "sin-sesion" });
-      const { data } = await supabase().from("mapa_contribuidores").select("user_id").eq("user_id", user.id).maybeSingle();
+      const { data } = await supabase().from("mapa_contribuidores").select("user_id, es_admin").eq("user_id", user.id).maybeSingle();
+      setEsAdmin(!!data?.es_admin);
       setEstado(data ? { tipo: "listo", user } : { tipo: "sin-permiso", user });
     })().catch(() => setEstado({ tipo: "sin-sesion" }));
     cargarCatalogo().then(setCatalogo, () => {});
@@ -164,9 +166,16 @@ export function CargarCartelera() {
     <main className="bg-mm h-full overflow-y-auto">
       <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
         <header>
-          <Link href="/" className="font-mono text-xs text-muted hover:text-ink">
-            ← Mapa
-          </Link>
+          <div className="flex gap-4 font-mono text-xs text-muted">
+            <Link href="/" className="hover:text-ink">
+              ← Mapa
+            </Link>
+            {esAdmin && (
+              <Link href="/admin" className="hover:text-ink">
+                Contribuidores
+              </Link>
+            )}
+          </div>
           <h1 className="mt-2 text-2xl font-semibold">Cargar cartelera</h1>
           <p className="mt-1 text-sm text-muted">
             Pasá la hoja de bedelía de un día y turno. Si ya estaba cargada, aparece abajo para corregirla.
