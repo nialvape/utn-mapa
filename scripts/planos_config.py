@@ -24,8 +24,6 @@ PISOS = [
         "corregir": [
             # El primer 27 del ala oeste (arriba a la izquierda) es el 29.
             {"numero": "27", "x": 790, "y": 1300, "nuevo": "29"},
-            # El "4" suelto del bloque violeta.
-            {"numero": "4", "x": 1552, "y": 1066, "nuevo": "04"},
         ],
         "sin_numero": [
             {"id": "23", "edificio": "violeta", "x": 1024, "y": 1438},
