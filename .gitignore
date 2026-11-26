@@ -42,3 +42,4 @@ next-env.d.ts
 
 # notas personales (no van al repo)
 notes/
+!.env.example

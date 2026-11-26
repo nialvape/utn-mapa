@@ -312,6 +312,7 @@ def main() -> None:
             if e["texto"].upper() == "AULA":
                 continue
             nombre, tipo = nombre_poi(e["texto"])
+            nombre, tipo = piso.get("renombrar_pois", {}).get(nombre, (nombre, tipo))
             centro = a_metros(e["x"], e["y"], t)
             # El plano dibuja algunas etiquetas dos veces, una encima de la otra.
             if any(p["nombre"] == nombre and math.dist(p["centro"], centro) < 1 for p in pois):

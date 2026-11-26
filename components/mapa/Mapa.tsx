@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import { PISOS, SEPARACION_PISOS, type PisoId } from "@/lib/pisos";
-import { buscarAula, cargarPlanos, type Aula, type Plano } from "@/lib/planos";
+import { cargarPlanos, type Aula, type Plano } from "@/lib/planos";
+import {
+  cargarCatalogo,
+  consultar,
+  etiquetaAula,
+  guardarMisComisiones,
+  misComisiones,
+  type Comision,
+  type Consulta,
+} from "@/lib/asignaciones";
 import { Escena, type Foco } from "./Escena";
+import { Buscador, type Sugerencia } from "./Buscador";
+import { PanelComision } from "./PanelComision";
 
 const NOMBRE_EDIFICIO = { violeta: "Edificio central", rosa: "Edificio este", noreste: "Edificio noreste" } as const;
 
@@ -30,18 +42,59 @@ function useAngosto() {
   return angosto;
 }
 
+function ubicarAula(planos: Record<PisoId, Plano>, id: string): { piso: PisoId; aula: Aula } | null {
+  for (const p of PISOS) {
+    const aula = planos[p.id].aulas.find((a) => a.id === id);
+    if (aula) return { piso: p.id, aula };
+  }
+  return null;
+}
+
+const mismaComision = (a: Comision, b: Comision) => a.materia === b.materia && a.comision === b.comision;
+
 export function Mapa() {
   const [planos, setPlanos] = useState<Record<PisoId, Plano> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [catalogo, setCatalogo] = useState<Comision[]>([]);
+  const [mias, setMias] = useState<Comision[]>([]);
   const [pisoActivo, setPisoActivo] = useState<PisoId | null>(null);
   const [seleccion, setSeleccion] = useState<{ piso: PisoId; aula: Aula } | null>(null);
-  const [consulta, setConsulta] = useState("");
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [comision, setComision] = useState<Comision | null>(null);
+  const [consulta, setConsulta] = useState<Consulta | null>(null);
+  const [errorConsulta, setErrorConsulta] = useState<string | null>(null);
   const angosto = useAngosto();
 
   useEffect(() => {
     cargarPlanos().then(setPlanos, (e: Error) => setError(e.message));
+    cargarCatalogo().then(setCatalogo, () => setCatalogo([]));
+    setMias(misComisiones());
   }, []);
+
+  // Al elegir una comisión: consulta la cartelera y lleva el mapa al aula.
+  useEffect(() => {
+    if (!comision || !planos) return;
+    let vigente = true;
+    setConsulta(null);
+    setErrorConsulta(null);
+    consultar(comision).then(
+      (c) => {
+        if (!vigente) return;
+        setConsulta(c);
+        const aula = c.deHoy.find((a) => a.aula)?.aula ?? c.anterior?.aula;
+        const ubicada = aula ? ubicarAula(planos, aula) : null;
+        if (ubicada) {
+          setPisoActivo(ubicada.piso);
+          setSeleccion(ubicada);
+        } else {
+          setSeleccion(null);
+        }
+      },
+      (e: Error) => vigente && setErrorConsulta(e.message),
+    );
+    return () => {
+      vigente = false;
+    };
+  }, [comision, planos]);
 
   const foco = useMemo<Foco>(() => {
     const zoom = angosto ? 1.6 : 1;
@@ -60,17 +113,20 @@ export function Mapa() {
     return { x, y: SEPARACION_PISOS * 0.5, z, distancia: 260 * zoom };
   }, [planos, pisoActivo, seleccion, angosto]);
 
-  function buscar(e: FormEvent) {
-    e.preventDefault();
-    if (!planos) return;
-    const r = buscarAula(planos, consulta);
-    if (!r) {
-      setAviso(consulta.trim() ? `No encontré el aula "${consulta.trim()}"` : null);
-      return;
+  function elegir(s: Sugerencia) {
+    if (s.tipo === "aula") {
+      setComision(null);
+      setPisoActivo(s.piso);
+      setSeleccion({ piso: s.piso, aula: s.aula });
+    } else {
+      setComision(s.comision);
     }
-    setAviso(null);
-    setPisoActivo(r.piso);
-    setSeleccion(r);
+  }
+
+  function alternarMia(c: Comision) {
+    const nueva = mias.some((m) => mismaComision(m, c)) ? mias.filter((m) => !mismaComision(m, c)) : [...mias, c];
+    setMias(nueva);
+    guardarMisComisiones(nueva);
   }
 
   const pisoSel = seleccion ? PISOS.find((p) => p.id === seleccion.piso)! : null;
@@ -85,56 +141,63 @@ export function Mapa() {
           foco={foco}
           onElegirAula={(piso, id) => {
             const aula = planos[piso].aulas.find((a) => a.id === id)!;
+            setComision(null);
             setPisoActivo(piso);
             setSeleccion({ piso, aula });
           }}
-          onFondo={() => setSeleccion(null)}
+          onFondo={() => {
+            setSeleccion(null);
+            setComision(null);
+          }}
         />
       ) : (
-        <div className="grid h-full place-items-center font-mono text-sm text-muted">
-          {error ?? "Cargando planos…"}
-        </div>
+        <div className="grid h-full place-items-center font-mono text-sm text-muted">{error ?? "Cargando planos…"}</div>
       )}
 
       <header className="pointer-events-none absolute inset-x-0 top-0 flex flex-col gap-3 p-4">
-        <div>
-          <p className="font-mono text-[11px] tracking-widest text-muted uppercase">UTN FRBA · Sede Campus</p>
-          <h1 className="text-lg font-semibold">Mapa</h1>
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="font-mono text-[11px] tracking-widest text-muted uppercase">UTN FRBA · Sede Campus</p>
+            <h1 className="text-lg font-semibold">Mapa</h1>
+          </div>
+          <Link href="/cargar" className="pointer-events-auto font-mono text-xs text-muted underline-offset-4 hover:text-ink hover:underline">
+            Cargar cartelera
+          </Link>
         </div>
-        <form onSubmit={buscar} className="reg bg-panel pointer-events-auto flex max-w-sm border border-line-strong backdrop-blur">
-          <input
-            value={consulta}
-            onChange={(e) => setConsulta(e.target.value)}
-            inputMode="text"
-            enterKeyHint="search"
-            placeholder="Buscar aula: 105, 34, Sub 13…"
-            aria-label="Buscar aula"
-            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted"
-          />
-          <button type="submit" className="px-4 font-mono text-sm text-accent hover:bg-line">
-            Ir
-          </button>
-        </form>
-        {aviso && <p className="font-mono text-xs text-muted">{aviso}</p>}
+        {planos && <Buscador planos={planos} catalogo={catalogo} mias={mias} onElegir={elegir} />}
       </header>
 
-      {seleccion && pisoSel && (
-        <section
-          aria-live="polite"
-          className="reg bg-panel absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-20 max-w-sm border border-line-strong p-4 backdrop-blur"
-        >
-          <p className="font-mono text-[11px] tracking-widest text-muted uppercase">
-            {pisoSel.nombre} · {NOMBRE_EDIFICIO[seleccion.aula.edificio]}
-          </p>
-          <p className="mt-1 text-2xl font-semibold">
-            Aula {seleccion.aula.id.startsWith("S") ? `Sub. ${seleccion.aula.id.slice(1)}` : seleccion.aula.id}
-          </p>
-          {(seleccion.aula.aVerificar || pisoSel.aVerificar) && (
-            <p className="mt-2 text-xs text-muted">
-              * Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
+      {comision ? (
+        <PanelComision
+          comision={comision}
+          consulta={consulta}
+          error={errorConsulta}
+          mia={mias.some((m) => mismaComision(m, comision))}
+          aulaEnMapa={!!seleccion}
+          onGuardar={() => alternarMia(comision)}
+          onCerrar={() => {
+            setComision(null);
+            setSeleccion(null);
+          }}
+        />
+      ) : (
+        seleccion &&
+        pisoSel && (
+          <section
+            aria-live="polite"
+            className="reg bg-panel absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-4 right-20 max-w-sm border border-line-strong p-4 backdrop-blur"
+          >
+            <p className="font-mono text-[11px] tracking-widest text-muted uppercase">
+              {pisoSel.nombre} · {NOMBRE_EDIFICIO[seleccion.aula.edificio]}
             </p>
-          )}
-        </section>
+            <p className="mt-1 text-2xl font-semibold">Aula {etiquetaAula(seleccion.aula.id)}</p>
+            {(seleccion.aula.aVerificar || pisoSel.aVerificar) && (
+              <p className="mt-2 text-xs text-muted">
+                * Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
+              </p>
+            )}
+          </section>
+        )
       )}
 
       <nav
@@ -151,11 +214,10 @@ export function Mapa() {
               title={p.aVerificar ? `${p.nombre} (a verificar)` : p.nombre}
               onClick={() => {
                 setSeleccion(null);
+                setComision(null);
                 setPisoActivo(activo ? null : p.id);
               }}
-              className={`h-11 w-12 font-mono text-sm transition-colors ${
-                activo ? "bg-accent text-paper" : "text-ink hover:bg-line"
-              }`}
+              className={`h-11 w-12 font-mono text-sm transition-colors ${activo ? "bg-accent text-paper" : "text-ink hover:bg-line"}`}
             >
               {p.id}
               {p.aVerificar && <span className={activo ? "text-paper/70" : "text-muted"}>*</span>}

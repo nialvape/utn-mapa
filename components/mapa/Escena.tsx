@@ -71,7 +71,7 @@ function AulaVista({
   useEffect(() => () => geo.dispose(), [geo]);
 
   const color = seleccionada ? ACENTO : TINTE[aula.edificio];
-  const opacidad = estado === "atenuado" ? 0.06 : seleccionada ? 0.75 : 0.22;
+  const opacidad = estado === "atenuado" ? 0.02 : seleccionada ? 0.75 : 0.22;
   const interactiva = estado !== "atenuado";
 
   return (
@@ -125,7 +125,8 @@ function PisoVista({
 }) {
   return (
     <group position={[0, nivel * SEPARACION_PISOS, 0]}>
-      <Lineas lineas={plano.lineas} opacidad={estado === "atenuado" ? 0.05 : estado === "activo" ? 0.55 : 0.32} />
+      {/* Los pisos no elegidos casi desaparecen: los planos son muy densos y tapan al elegido. */}
+      <Lineas lineas={plano.lineas} opacidad={estado === "atenuado" ? 0.015 : estado === "activo" ? 0.55 : 0.32} />
       {plano.aulas.map((a) => (
         <AulaVista key={a.id} aula={a} estado={estado} seleccionada={a.id === seleccion} onElegir={onElegir} />
       ))}

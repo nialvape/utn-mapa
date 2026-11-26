@@ -31,6 +31,8 @@ PISOS = [
             {"id": "23", "edificio": "violeta", "x": 1024, "y": 1438},
             {"id": "24", "edificio": "violeta", "x": 940, "y": 1438},
         ],
+        # Lugares que cambiaron desde que se hizo el plano: nombre del plano → (nombre actual, tipo).
+        "renombrar_pois": {"Lab 3D": ("Streaming", "otro")},
     },
     {
         "id": "1",
