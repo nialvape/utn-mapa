@@ -72,7 +72,7 @@ export function PanelComision({
             Hoy todavía no se cargó · el {fechaLarga(consulta.anterior.fecha)} fue en
           </p>
           <Linea a={consulta.anterior} confirmada={false} />
-          <p className="mt-1 text-xs text-muted">No confirmado: puede cambiar hoy.</p>
+          <p className="mt-1 text-xs text-muted">⚠ No confirmado: puede cambiar hoy.</p>
         </>
       )}
 
@@ -85,7 +85,7 @@ export function PanelComision({
       )}
 
       {consulta && !aulaEnMapa && (consulta.deHoy[0]?.aula || consulta.anterior?.aula) && (
-        <p className="mt-2 text-xs text-muted">Esa aula todavía no está ubicada en el mapa.</p>
+        <p className="mt-2 text-xs text-muted">⚠ Esa aula todavía no está ubicada en el mapa.</p>
       )}
     </section>
   );

@@ -193,7 +193,7 @@ export function Mapa() {
             <p className="mt-1 text-2xl font-semibold">Aula {etiquetaAula(seleccion.aula.id)}</p>
             {(seleccion.aula.aVerificar || pisoSel.aVerificar) && (
               <p className="mt-2 text-xs text-muted">
-                * Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
+                ⚠ Número o ubicación a verificar: {pisoSel.aVerificar ? "este piso todavía no tiene plano." : "el plano no lo dice."}
               </p>
             )}
           </section>
@@ -220,7 +220,6 @@ export function Mapa() {
               className={`h-11 w-12 font-mono text-sm transition-colors ${activo ? "bg-accent text-paper" : "text-ink hover:bg-line"}`}
             >
               {p.id}
-              {p.aVerificar && <span className={activo ? "text-paper/70" : "text-muted"}>*</span>}
             </button>
           );
         })}

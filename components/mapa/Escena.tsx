@@ -96,7 +96,7 @@ function AulaVista({
       </mesh>
       {estado !== "atenuado" && (
         <Etiqueta
-          texto={`${aula.id}${aula.aVerificar ? "*" : ""}`}
+          texto={aula.id}
           x={aula.centro[0]}
           y={alto}
           z={aula.centro[1]}
